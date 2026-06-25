@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Dashboard — Michael Pang</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0D1117;
+    --surface:  #161B22;
+    --surface2: #21262D;
+    --border:   #30363D;
+    --text:     #E6EDF3;
+    --muted:    #7D8590;
+    --green:    #00D4AA;
+    --green-bg: rgba(0,212,170,0.1);
+    --red:      #FF4D6D;
+    --red-bg:   rgba(255,77,109,0.1);
+    --amber:    #F0A500;
+    --amber-bg: rgba(240,165,0,0.1);
+    --blue:     #58A6FF;
+    --blue-bg:  rgba(88,166,255,0.08);
+    --indiv:    #58A6FF;
+    --roth:     #B97FFF;
+    --combined: #00D4AA;
+    --mono: 'JetBrains Mono', 'Courier New', monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+
+  /* ── TOPBAR ── */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    height: 52px; background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 24px; gap: 20px;
+  }
+  .topbar-logo { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+  .topbar-logo span { color: var(--text); }
+
+  /* ── TABS ── */
+  .tabs { display: flex; gap: 4px; flex: 1; justify-content: center; }
+  .tab {
+    padding: 6px 20px; border-radius: 6px; font-size: 13px; font-weight: 500;
+    cursor: pointer; border: 1px solid transparent; background: none;
+    color: var(--muted); transition: all 0.15s; white-space: nowrap;
+  }
+  .tab:hover { color: var(--text); background: var(--surface2); }
+  .tab.active-indiv  { color: var(--indiv);    border-color: var(--indiv);    background: rgba(88,166,255,0.08); }
+  .tab.active-roth   { color: var(--roth);     border-color: var(--roth);     background: rgba(185,127,255,0.08); }
+  .tab.active-combined { color: var(--combined); border-color: var(--combined); background: rgba(0,212,170,0.08); }
+
+  .topbar-ytd { font-family: var(--mono); font-size: 12px; font-weight: 500; white-space: nowrap; padding: 4px 12px; border-radius: 20px; }
+  .ytd-neg { background: var(--red-bg); color: var(--red); }
+  .ytd-pos { background: var(--green-bg); color: var(--green); }
+  .ytd-neutral { background: var(--surface2); color: var(--muted); }
+
+  /* ── PANELS ── */
+  .panel { display: none; padding: 24px; margin-top: 52px; max-width: 1200px; }
+  .panel.active { display: block; }
+
+  /* ── UPLOAD ZONE ── */
+  .upload-zone {
+    border: 1.5px dashed var(--border); border-radius: var(--radius-lg);
+    padding: 32px 24px; text-align: center; cursor: pointer;
+    transition: all 0.2s; margin-bottom: 24px; background: var(--surface);
+  }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--blue); background: var(--blue-bg); }
+  .upload-zone.has-data { border-style: solid; border-color: var(--green); background: var(--green-bg); }
+  .upload-icon { font-size: 28px; margin-bottom: 8px; }
+  .upload-title { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+  .upload-sub { font-size: 12px; color: var(--muted); }
+  .upload-files-list { font-family: var(--mono); font-size: 11px; color: var(--green); margin-top: 8px; }
+  input[type=file] { display: none; }
+
+  /* ── KPI ROW ── */
+  .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .kpi-label { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
+  .kpi-value { font-family: var(--mono); font-size: 24px; font-weight: 500; color: var(--text); line-height: 1; }
+  .kpi-value.pos { color: var(--green); }
+  .kpi-value.neg { color: var(--red); }
+  .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  /* ── CHART CARD ── */
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 20px; }
+  .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .card-title { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .card-badge { font-size: 11px; font-family: var(--mono); padding: 2px 8px; border-radius: 4px; }
+
+  /* ── 2-COL GRID ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+
+  /* ── MONTHLY TABLE ── */
+  .monthly-table { width: 100%; border-collapse: collapse; }
+  .monthly-table th {
+    font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--muted); padding: 0 12px 10px; text-align: right; border-bottom: 1px solid var(--border);
+  }
+  .monthly-table th:first-child { text-align: left; }
+  .monthly-table td { padding: 10px 12px; text-align: right; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 12px; color: var(--text); }
+  .monthly-table td:first-child { text-align: left; font-family: var(--sans); font-size: 13px; font-weight: 500; color: var(--text); }
+  .monthly-table tr:last-child td { border-bottom: none; }
+  .monthly-table tr.total-row td { border-top: 1px solid var(--border); font-weight: 500; background: var(--surface2); }
+  .monthly-table tr:hover td { background: var(--surface2); }
+  .pos { color: var(--green) !important; }
+  .neg { color: var(--red) !important; }
+  .neutral { color: var(--muted) !important; }
+
+  /* ── WIN RATE BAR ── */
+  .wr-wrap { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+  .wr-bar { width: 48px; height: 3px; background: var(--surface2); border-radius: 2px; flex-shrink: 0; }
+  .wr-fill { height: 3px; border-radius: 2px; }
+
+  /* ── VIOLATIONS ── */
+  .vio-list { display: flex; flex-direction: column; gap: 8px; }
+  .vio-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: var(--radius); background: var(--red-bg); border-left: 2px solid var(--red); }
+  .vio-ticker { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--red); min-width: 44px; padding-top: 1px; }
+  .vio-text { font-size: 12px; color: #ffb3be; line-height: 1.5; flex: 1; }
+  .vio-pnl { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--red); white-space: nowrap; }
+
+  /* ── RULES ── */
+  .rules-list { display: flex; flex-direction: column; gap: 6px; }
+  .rule-item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 12px; border-radius: var(--radius); background: var(--surface2); font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .rule-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); flex-shrink: 0; margin-top: 5px; }
+
+  /* ── PREMIUM ROWS ── */
+  .prem-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .prem-item:last-child { border-bottom: none; }
+  .prem-label { font-family: var(--mono); color: var(--muted); flex: 1; font-size: 11px; }
+  .prem-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .prem-bg { width: 80px; height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+  .prem-fill { height: 4px; border-radius: 2px; }
+  .prem-pct { font-family: var(--mono); font-size: 11px; font-weight: 500; min-width: 52px; text-align: right; }
+  .insight { background: var(--amber-bg); border: 1px solid rgba(240,165,0,0.25); border-radius: var(--radius); padding: 11px 14px; font-size: 12px; color: var(--amber); line-height: 1.6; margin-top: 12px; }
+
+  /* ── COMBINED ── */
+  .combined-equity { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 20px; }
+  .account-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 20px; margin-right: 8px; }
+  .label-indiv { background: rgba(88,166,255,0.12); color: var(--indiv); }
+  .label-roth  { background: rgba(185,127,255,0.12); color: var(--roth); }
+  .label-combined { background: rgba(0,212,170,0.12); color: var(--combined); }
+  .label-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  /* ── EMPTY STATE ── */
+  .empty-state { text-align: center; padding: 60px 24px; color: var(--muted); }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-title { font-size: 16px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
+  .empty-sub { font-size: 13px; line-height: 1.6; }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: var(--bg); } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── TOOLTIPS / misc ── */
+  .section-label { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 10px; display: block; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  .btn-clear { background: none; border: 1px solid var(--border); color: var(--muted); font-size: 11px; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-family: var(--sans); }
+  .btn-clear:hover { border-color: var(--red); color: var(--red); }
+  .flex-between { display: flex; align-items: center; justify-content: space-between; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-logo">MP &nbsp;<span>Trading</span></div>
+  <div class="tabs">
+    <button class="tab" id="tab-indiv"    onclick="switchTab('individual')">Individual Account</button>
+    <button class="tab" id="tab-roth"     onclick="switchTab('roth')">Roth IRA</button>
+    <button class="tab" id="tab-combined" onclick="switchTab('combined')">Combined View</button>
+  </div>
+  <div class="topbar-ytd ytd-neutral" id="ytd-badge">YTD: — </div>
+</div>
+
+<!-- PANEL: INDIVIDUAL -->
+<div class="panel" id="panel-individual">
+  <div class="upload-zone" id="upload-indiv" onclick="document.getElementById('file-indiv').click()"
+       ondragover="handleDrag(event,'indiv')" ondragleave="handleDragLeave(event,'indiv')" ondrop="handleDrop(event,'indiv')">
+    <input type="file" id="file-indiv" multiple accept=".csv" onchange="loadFiles(event,'individual')">
+    <div class="upload-icon">📂</div>
+    <div class="upload-title">Drop ThinkorSwim Account Statement CSVs here</div>
+    <div class="upload-sub">Select one or more monthly exports — they merge automatically</div>
+    <div class="upload-files-list" id="files-indiv-list"></div>
+  </div>
+  <div id="dashboard-individual">
+    <div class="empty-state">
+      <div class="empty-icon">📊</div>
+      <div class="empty-title">Upload your TOS statements to get started</div>
+      <div class="empty-sub">Drop one or more CSV exports above.<br>Jan through Jun 2026 data merges automatically across months.</div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: ROTH -->
+<div class="panel" id="panel-roth">
+  <div class="upload-zone" id="upload-roth" onclick="document.getElementById('file-roth').click()"
+       ondragover="handleDrag(event,'roth')" ondragleave="handleDragLeave(event,'roth')" ondrop="handleDrop(event,'roth')">
+    <input type="file" id="file-roth" multiple accept=".csv" onchange="loadFiles(event,'roth')">
+    <div class="upload-icon">📂</div>
+    <div class="upload-title">Drop Roth IRA Account Statement CSVs here</div>
+    <div class="upload-sub">Select one or more monthly exports — they merge automatically</div>
+    <div class="upload-files-list" id="files-roth-list"></div>
+  </div>
+  <div id="dashboard-roth">
+    <div class="empty-state">
+      <div class="empty-icon">🏦</div>
+      <div class="empty-title">No Roth IRA data yet</div>
+      <div class="empty-sub">Upload your Roth IRA TOS statement exports above.<br>Analysis will appear here automatically.</div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: COMBINED -->
+<div class="panel" id="panel-combined">
+  <div id="dashboard-combined">
+    <div class="empty-state">
+      <div class="empty-icon">🔗</div>
+      <div class="empty-title">Upload data to both accounts first</div>
+      <div class="empty-sub">The combined view will appear here once you've loaded<br>at least one account's statements.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════
+const state = {
+  individual: { records: [], fileNames: [] },
+  roth:       { records: [], fileNames: [] },
+  activeTab:  'individual',
+  charts:     {}
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  TOS CSV PARSER (JS port of parse_tos.py)
+// ═══════════════════════════════════════════════════════════════
+
+function cleanAmount(s) {
+  if (!s || s.trim() === '' || s.trim() === '--') return 0;
+  s = s.trim().replace(/,/g,'').replace(/\$/g,'').replace(/"/g,'');
+  if (s.startsWith('(') && s.endsWith(')')) s = '-' + s.slice(1,-1);
+  return parseFloat(s) || 0;
+}
+
+function parseDesc(desc) {
+  const m = desc.trim().match(
+    /^(BOT|SOLD)\s+([+-]?\d+)\s+(\w+)\s+100\s+(?:\([^)]+\)\s+)?(\d+\s+\w+\s+\d+)\s+([\d.]+)\s+(CALL|PUT)\s+@([\d.]+)/i
+  );
+  if (!m) return null;
+  return { action: m[1].toUpperCase(), qty: Math.abs(parseInt(m[2])), ticker: m[3].toUpperCase(),
+           expStr: m[4].trim(), strike: parseFloat(m[5]), optType: m[6].toUpperCase(), price: parseFloat(m[7]) };
+}
+
+function parseDate(s) {
+  if (!s) return null;
+  const d = new Date(s);
+  return isNaN(d) ? null : d;
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  return `${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`;
+}
+
+function vwap(pairs) {
+  const tq = pairs.reduce((s,[q])=>s+q,0);
+  if (!tq) return 0;
+  return pairs.reduce((s,[q,p])=>s+q*p,0)/tq;
+}
+
+function contractKey(ticker, optType, strike, expStr) {
+  return `${ticker}|${optType}|${strike}|${expStr}`;
+}
+
+function parseCSV(text) {
+  const rows = [];
+  let inQ = false, cur = '', row = [];
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') { inQ = !inQ; }
+    else if (c === ',' && !inQ) { row.push(cur); cur = ''; }
+    else if ((c === '\n' || c === '\r') && !inQ) {
+      if (c === '\r' && text[i+1] === '\n') i++;
+      row.push(cur); cur = '';
+      rows.push(row); row = [];
+    } else { cur += c; }
+  }
+  if (cur || row.length) { row.push(cur); rows.push(row); }
+  return rows;
+}
+
+function extractTrades(text) {
+  const lines = text.replace(/^\uFEFF/,'').split(/\r?\n/);
+  const STOP = new Set(['Futures Statements','Forex Statements','Account Order History',
+    'Account Trade History','Equities','Options','Profits and Losses','Account Summary']);
+  const trades = []; let inSec = false, hdrSeen = false;
+  for (const raw of lines) {
+    const s = raw.trim();
+    if (s === 'Cash Balance') { inSec = true; continue; }
+    if (inSec && !hdrSeen && s.startsWith('DATE,')) { hdrSeen = true; continue; }
+    if (inSec && hdrSeen) {
+      if (STOP.has(s)) break;
+      const row = parseCSV(s)[0] || [];
+      if (row.length < 8 || row[2]?.toUpperCase() !== 'TRD') continue;
+      const [dateStr, timeStr,, ref, desc] = row;
+      const d = new Date(dateStr?.trim());
+      if (isNaN(d)) continue;
+      trades.push({
+        date: d, time: timeStr?.trim(), ref: ref?.trim(), desc: desc?.trim(),
+        miscFees: Math.abs(cleanAmount(row[5])),
+        commFees: Math.abs(cleanAmount(row[6])),
+        amount:   cleanAmount(row[7]),
+        totalFees: Math.abs(cleanAmount(row[5])) + Math.abs(cleanAmount(row[6]))
+      });
+    }
+  }
+  return trades;
+}
+
+function extractOrderHistory(text) {
+  const lines = text.replace(/^\uFEFF/,'').split(/\r?\n/);
+  const STOP = new Set(['Account Trade History','Equities','Options','Profits and Losses','Account Summary']);
+  const orders = []; let inSec = false, hdrSeen = false;
+  for (const raw of lines) {
+    const s = raw.trim();
+    if (s === 'Account Order History') { inSec = true; continue; }
+    if (inSec && !hdrSeen && s.startsWith('Notes')) { hdrSeen = true; continue; }
+    if (inSec && hdrSeen) {
+      if (STOP.has(s)) break;
+      const row = parseCSV(s)[0] || [];
+      if (row.length < 14 || row[13]?.trim().toUpperCase() !== 'FILLED') continue;
+      const strike = parseFloat(row[9]?.trim());
+      if (isNaN(strike)) continue;
+      const dt = new Date(row[2]?.trim());
+      const key = contractKey(row[7]?.trim().toUpperCase(), row[10]?.trim().toUpperCase(), strike, row[8]?.trim());
+      orders.push({ key, side: row[4]?.trim().toUpperCase(), posEffect: row[6]?.trim().toUpperCase(), dt: isNaN(dt) ? null : dt });
+    }
+  }
+  const byKey = {};
+  for (const o of orders) {
+    if (!byKey[o.key]) byKey[o.key] = [];
+    byKey[o.key].push(o);
+  }
+  const result = {};
+  for (const [key, ords] of Object.entries(byKey)) {
+    const sorted = ords.filter(o=>o.dt).sort((a,b)=>a.dt-b.dt);
+    const opens = sorted.filter(o=>o.posEffect?.includes('OPEN'));
+    result[key] = (opens[0] || sorted[0])?.side || 'BUY';
+  }
+  return result;
+}
+
+function matchTrades(allTrades, firstSideMap) {
+  const groups = {};
+  for (const t of allTrades) {
+    const p = parseDesc(t.desc || '');
+    if (!p) continue;
+    const key = contractKey(p.ticker, p.optType, p.strike, p.expStr);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push({...t,...p});
+  }
+
+  const results = [];
+  for (const [key, legs] of Object.entries(groups)) {
+    const [ticker, optType, strikeS, expStr] = key.split('|');
+    const strike = parseFloat(strikeS);
+    const botLegs  = legs.filter(l=>l.action==='BOT');
+    const soldLegs = legs.filter(l=>l.action==='SOLD');
+
+    let firstSide = firstSideMap[key];
+    if (!firstSide) {
+      const sorted = [...legs].sort((a,b)=>a.date-b.date);
+      firstSide = sorted[0].action === 'BOT' ? 'BUY' : 'SELL';
+    }
+    const isShort = firstSide === 'SELL';
+
+    const totalBotQty  = botLegs.reduce((s,l)=>s+l.qty,0);
+    const totalSoldQty = soldLegs.reduce((s,l)=>s+l.qty,0);
+    const contracts    = isShort ? totalSoldQty : totalBotQty;
+
+    const soldCash = soldLegs.reduce((s,l)=>s+Math.abs(l.amount),0);
+    const botCash  = botLegs.reduce((s,l)=>s+Math.abs(l.amount),0);
+    const fees     = legs.reduce((s,l)=>s+l.totalFees,0);
+
+    const entryLegs = isShort ? soldLegs : botLegs;
+    const exitLegs  = isShort ? botLegs  : soldLegs;
+    const entryPrice = vwap(entryLegs.map(l=>[l.qty,l.price]));
+    const exitPrice  = vwap(exitLegs.map(l=>[l.qty,l.price]));
+
+    const openDate  = entryLegs.reduce((m,l)=>l.date<m?l.date:m, entryLegs[0]?.date);
+    const closeDate = exitLegs.length ? exitLegs.reduce((m,l)=>l.date>m?l.date:m, exitLegs[0]?.date) : null;
+
+    const isClosed = exitLegs.length > 0 && (
+      isShort ? totalBotQty >= contracts : totalSoldQty >= contracts
+    );
+
+    let pnl=null, pnlPct=null, premPct=null, winLoss='OPEN';
+    if (isClosed) {
+      if (isShort) {
+        pnl = soldCash - botCash - fees;
+        pnlPct = soldCash ? pnl/soldCash*100 : null;
+        premPct = soldCash ? (soldCash-botCash)/soldCash*100 : null;
+      } else {
+        pnl = soldCash - botCash - fees;
+        pnlPct = botCash ? pnl/botCash*100 : null;
+      }
+      winLoss = pnl > 0 ? 'WIN' : 'LOSS';
+    }
+
+    const direction = isShort
+      ? (optType==='CALL' ? 'SHORT CALL (Covered)' : 'SHORT PUT')
+      : (optType==='CALL' ? 'LONG CALL' : 'LONG PUT');
+
+    results.push({
+      ticker, symbol:`${ticker} ${strike} ${expStr} ${optType}`,
+      optType, direction, strike: `${strike}`, expiration: expStr,
+      openDate: fmtDate(openDate), closeDate: isClosed ? fmtDate(closeDate) : 'OPEN',
+      openDateObj: openDate, closeMonth: closeDate ? closeDate.getMonth() : (openDate ? openDate.getMonth() : -1),
+      contracts, entryPrice: `$${entryPrice.toFixed(2)}`, exitPrice: isClosed ? `$${exitPrice.toFixed(2)}` : 'N/A',
+      totalCost: `$${(isShort?soldCash:botCash).toFixed(2)}`,
+      sellValue: isClosed ? `$${(isShort?botCash:soldCash).toFixed(2)}` : 'N/A',
+      netFees: `$${fees.toFixed(2)}`,
+      pnl, pnlPct, premPct, winLoss,
+      pnlFmt: pnl !== null ? fmtMoney(pnl) : 'N/A',
+      pnlPctFmt: pnlPct !== null ? `${pnlPct>=0?'+':''}${pnlPct.toFixed(1)}%` : 'N/A',
+      premPctFmt: premPct !== null ? `${premPct.toFixed(1)}%` : 'N/A',
+      openMonth: openDate ? openDate.getMonth() : -1,
+      openYear:  openDate ? openDate.getFullYear() : -1,
+    });
+  }
+
+  const closed = results.filter(r=>r.winLoss!=='OPEN').sort((a,b)=>new Date(a.openDate)-new Date(b.openDate));
+  const open   = results.filter(r=>r.winLoss==='OPEN').sort((a,b)=>new Date(a.openDate)-new Date(b.openDate));
+  return [...closed,...open];
+}
+
+function parseMultipleFiles(texts) {
+  let allTrades = []; const firstSideMap = {};
+  for (const text of texts) {
+    const trades = extractTrades(text);
+    const sides  = extractOrderHistory(text);
+    allTrades = allTrades.concat(trades);
+    for (const [k,v] of Object.entries(sides)) { if (!firstSideMap[k]) firstSideMap[k]=v; }
+  }
+  allTrades.sort((a,b)=>a.date-b.date || a.time.localeCompare(b.time));
+  return matchTrades(allTrades, firstSideMap);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ANALYTICS
+// ═══════════════════════════════════════════════════════════════
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function buildMonthly(records) {
+  const months = {};
+  for (let i=0;i<12;i++) months[i] = {month:MONTHS[i],pnl:0,wins:0,losses:0,winAmts:[],lossAmts:[]};
+  for (const r of records) {
+    if (r.winLoss === 'OPEN') continue;
+    const m = r.openMonth;
+    if (m < 0) continue;
+    months[m].pnl += r.pnl;
+    if (r.winLoss==='WIN') { months[m].wins++; months[m].winAmts.push(r.pnl); }
+    else { months[m].losses++; months[m].lossAmts.push(r.pnl); }
+  }
+  return Object.values(months);
+}
+
+function buildSummary(records) {
+  const closed = records.filter(r=>r.winLoss!=='OPEN');
+  const wins   = closed.filter(r=>r.winLoss==='WIN');
+  const losses = closed.filter(r=>r.winLoss==='LOSS');
+  const totalPnl   = closed.reduce((s,r)=>s+r.pnl,0);
+  const grossWin   = wins.reduce((s,r)=>s+r.pnl,0);
+  const grossLoss  = losses.reduce((s,r)=>s+r.pnl,0);
+  const avgWin     = wins.length   ? grossWin/wins.length   : 0;
+  const avgLoss    = losses.length ? grossLoss/losses.length : 0;
+  const pf         = grossLoss !== 0 ? Math.abs(grossWin/grossLoss) : null;
+  const winRate    = closed.length ? wins.length/closed.length*100 : 0;
+  const shortTrades = closed.filter(r=>r.direction.includes('SHORT'));
+  const premVals   = shortTrades.filter(r=>r.premPct!==null).map(r=>r.premPct);
+  const avgPrem    = premVals.length ? premVals.reduce((s,v)=>s+v,0)/premVals.length : null;
+  return { totalPnl, grossWin, grossLoss, avgWin, avgLoss, pf, winRate,
+           totalTrades:closed.length, wins:wins.length, losses:losses.length,
+           openCount: records.filter(r=>r.winLoss==='OPEN').length, avgPrem };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  FORMATTING
+// ═══════════════════════════════════════════════════════════════
+function fmtMoney(v) {
+  const abs = Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});
+  return (v<0?'–$':'+$') + abs;
+}
+function fmtMoneyPlain(v) {
+  return (v<0?'–$':'$') + Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});
+}
+function cls(v) { return v > 0 ? 'pos' : v < 0 ? 'neg' : 'neutral'; }
+
+// ═══════════════════════════════════════════════════════════════
+//  VIOLATIONS DETECTOR
+// ═══════════════════════════════════════════════════════════════
+function detectViolations(records) {
+  const viols = [];
+  for (const r of records) {
+    if (r.winLoss === 'OPEN') continue;
+    if (r.direction.includes('SHORT') && r.premPct !== null && r.premPct < -100) {
+      viols.push({ ticker:r.ticker, date:`${r.openDate} – ${r.closeDate}`,
+        rule:`No stop on ${r.optType.toLowerCase()} — loss exceeded ${Math.abs(r.premPct).toFixed(0)}% of premium received`,
+        pnl: r.pnl });
+    }
+    if (r.contracts >= 40) {
+      viols.push({ ticker:r.ticker, date:r.openDate,
+        rule:`${r.contracts} contracts — position sizing breach (rule: define max size per trade)`,
+        pnl: r.pnl });
+    }
+    if (r.direction.includes('LONG') && r.openDate === r.closeDate && r.ticker==='SPX') {
+      viols.push({ ticker:'SPX', date:r.openDate,
+        rule:`SPX 0DTE ${r.optType.toLowerCase()} — same-day open and close, high gamma risk`,
+        pnl: r.pnl });
+    }
+  }
+  viols.sort((a,b)=>a.pnl-b.pnl);
+  return viols.slice(0,8);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CHART HELPERS
+// ═══════════════════════════════════════════════════════════════
+function destroyChart(id) {
+  if (state.charts[id]) { state.charts[id].destroy(); delete state.charts[id]; }
+}
+
+function makeEquityChart(canvasId, monthly, accentColor) {
+  destroyChart(canvasId);
+  const labels=[], data=[];
+  let running=0;
+  for (const m of monthly) {
+    if (m.wins+m.losses > 0 || running !== 0) {
+      running += m.pnl; labels.push(m.month); data.push(Math.round(running));
+    }
+  }
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+  state.charts[canvasId] = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets:[{ data, borderColor: accentColor, borderWidth:2, pointBackgroundColor: data.map(v=>v>=0?'#00D4AA':'#FF4D6D'), pointRadius:4, pointHoverRadius:6, fill:false, tension:0.3 }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx=> ' ' + fmtMoneyPlain(ctx.raw) + ' cumulative' } } },
+      scales:{
+        x:{ grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#7D8590',font:{size:11}}, border:{display:false} },
+        y:{ grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#7D8590',font:{size:11}, callback: v=>(v<0?'–$':'$')+Math.abs(v/1000).toFixed(0)+'k'}, border:{display:false} }
+      }
+    }
+  });
+}
+
+function makeWinRateChart(canvasId, monthly) {
+  destroyChart(canvasId);
+  const active = monthly.filter(m=>m.wins+m.losses>0);
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+  state.charts[canvasId] = new Chart(ctx, {
+    type:'bar',
+    data:{ labels:active.map(m=>m.month), datasets:[{ data:active.map(m=>Math.round(m.wins/(m.wins+m.losses)*100)), backgroundColor:active.map(m=>{ const wr=m.wins/(m.wins+m.losses)*100; return wr>=50?'rgba(0,212,170,0.7)':'rgba(255,77,109,0.7)'; }), borderRadius:4, borderSkipped:false }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:ctx=>` ${ctx.raw}% win rate`}}}, scales:{ x:{grid:{display:false},ticks:{color:'#7D8590',font:{size:11}},border:{display:false}}, y:{min:0,max:100,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#7D8590',font:{size:11},callback:v=>v+'%'},border:{display:false}} } }
+  });
+}
+
+function makeCombinedChart(canvasId, indivMonthly, rothMonthly) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+
+  const indivCum=[], rothCum=[], combinedCum=[];
+  let ri=0, rr=0, rc=0;
+  const labels = MONTHS.slice(0,6);
+  for (let i=0;i<6;i++) {
+    ri += (indivMonthly[i]||{pnl:0}).pnl;
+    rr += (rothMonthly[i]||{pnl:0}).pnl;
+    rc = ri+rr;
+    indivCum.push(Math.round(ri));
+    rothCum.push(Math.round(rr));
+    combinedCum.push(Math.round(rc));
+  }
+
+  state.charts[canvasId] = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[
+      { label:'Individual', data:indivCum, borderColor:'#58A6FF', borderWidth:2, pointRadius:3, fill:false, tension:0.3, borderDash:[] },
+      { label:'Roth IRA',   data:rothCum,  borderColor:'#B97FFF', borderWidth:2, pointRadius:3, fill:false, tension:0.3, borderDash:[4,3] },
+      { label:'Combined',   data:combinedCum, borderColor:'#00D4AA', borderWidth:2.5, pointRadius:4, fill:false, tension:0.3, borderDash:[] }
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>' '+ctx.dataset.label+': '+fmtMoneyPlain(ctx.raw)}} },
+      scales:{ x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#7D8590',font:{size:11}},border:{display:false}}, y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#7D8590',font:{size:11},callback:v=>(v<0?'–$':'$')+Math.abs(v/1000).toFixed(0)+'k'},border:{display:false}} }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  RENDER DASHBOARD
+// ═══════════════════════════════════════════════════════════════
+function renderDashboard(account) {
+  const records = state[account].records;
+  const summary = buildSummary(records);
+  const monthly = buildMonthly(records);
+  const viols   = detectViolations(records);
+  const shorts  = records.filter(r=>r.direction.includes('SHORT') && r.winLoss!=='OPEN');
+  const accentColor = account==='individual' ? '#58A6FF' : '#B97FFF';
+  const containerId = `dashboard-${account}`;
+  const chartSuffix = account==='individual' ? 'I' : 'R';
+
+  const activeMonths = monthly.filter(m=>m.wins+m.losses>0);
+
+  document.getElementById(containerId).innerHTML = `
+    <div class="flex-between" style="margin-bottom:16px">
+      <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">${records.filter(r=>r.winLoss!=='OPEN').length} closed trades · ${records.filter(r=>r.winLoss==='OPEN').length} open positions</span>
+      <button class="btn-clear" onclick="clearAccount('${account}')">Clear data</button>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="kpi-label">YTD Net P&L</div>
+        <div class="kpi-value ${cls(summary.totalPnl)}">${fmtMoney(summary.totalPnl)}</div>
+        <div class="kpi-sub">Jan – ${activeMonths.length ? activeMonths[activeMonths.length-1].month : '—'} 2026</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Win Rate</div>
+        <div class="kpi-value">${summary.totalTrades ? summary.winRate.toFixed(1) : '—'}%</div>
+        <div class="kpi-sub">${summary.wins}W / ${summary.losses}L · ${summary.totalTrades} trades</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Profit Factor</div>
+        <div class="kpi-value ${summary.pf && summary.pf >= 1 ? 'pos' : 'neg'}">${summary.pf ? summary.pf.toFixed(2) : '—'}</div>
+        <div class="kpi-sub">Target: 1.5+</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Avg Win</div>
+        <div class="kpi-value pos">${summary.wins ? fmtMoney(summary.avgWin) : '—'}</div>
+        <div class="kpi-sub">Avg Loss: ${summary.losses ? fmtMoney(summary.avgLoss) : '—'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Avg Prem Capture</div>
+        <div class="kpi-value ${summary.avgPrem !== null ? cls(summary.avgPrem) : ''}">${summary.avgPrem !== null ? summary.avgPrem.toFixed(1)+'%' : '—'}</div>
+        <div class="kpi-sub">${shorts.length} covered call/short trades</div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-header">
+        <span class="card-title">Cumulative P&L — equity curve</span>
+        <span class="card-badge" style="background:${summary.totalPnl>=0?'rgba(0,212,170,0.12)':'rgba(255,77,109,0.12)'}; color:${summary.totalPnl>=0?'#00D4AA':'#FF4D6D'}">${fmtMoneyPlain(summary.totalPnl)} YTD</span>
+      </div>
+      <div style="position:relative;width:100%;height:180px"><canvas id="equityChart${chartSuffix}" role="img" aria-label="Cumulative P&L equity curve"></canvas></div>
+    </div>
+
+    <div class="two-col">
+      <div class="chart-card" style="margin-bottom:0">
+        <div class="card-header"><span class="card-title">Monthly breakdown</span></div>
+        <table class="monthly-table">
+          <thead><tr><th>Month</th><th>P&L</th><th>W</th><th>L</th><th>Win %</th><th>Avg W</th><th>Avg L</th></tr></thead>
+          <tbody>${activeMonths.map(m => {
+            const wr = m.wins+m.losses > 0 ? Math.round(m.wins/(m.wins+m.losses)*100) : 0;
+            const barC = wr>=50?'#00D4AA':'#FF4D6D';
+            const avgW = m.wins   ? fmtMoneyPlain(m.winAmts.reduce((s,v)=>s+v,0)/m.wins) : '—';
+            const avgL = m.losses ? fmtMoneyPlain(m.lossAmts.reduce((s,v)=>s+v,0)/m.losses) : '—';
+            return `<tr>
+              <td>${m.month}</td>
+              <td class="${cls(m.pnl)}">${m.wins+m.losses>0?fmtMoney(m.pnl):'—'}</td>
+              <td class="pos">${m.wins||'—'}</td>
+              <td class="neg">${m.losses||'—'}</td>
+              <td><div class="wr-wrap"><span style="color:${barC};font-family:var(--mono);font-size:11px">${m.wins+m.losses>0?wr+'%':'—'}</span>${m.wins+m.losses>0?`<div class="wr-bar"><div class="wr-fill" style="width:${wr}%;background:${barC}"></div></div>`:''}</div></td>
+              <td class="pos">${avgW}</td>
+              <td class="neg">${avgL}</td>
+            </tr>`;
+          }).join('')}
+          <tr class="total-row">
+            <td>YTD</td>
+            <td class="${cls(summary.totalPnl)}">${fmtMoney(summary.totalPnl)}</td>
+            <td class="pos">${summary.wins}</td>
+            <td class="neg">${summary.losses}</td>
+            <td><div class="wr-wrap"><span style="color:${summary.winRate>=50?'#00D4AA':'#FF4D6D'};font-family:var(--mono);font-size:11px">${summary.totalTrades?summary.winRate.toFixed(0)+'%':'—'}</span></div></td>
+            <td class="pos">${summary.wins?fmtMoneyPlain(summary.avgWin):'—'}</td>
+            <td class="neg">${summary.losses?fmtMoneyPlain(summary.avgLoss):'—'}</td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="chart-card" style="margin-bottom:0">
+          <div class="card-header"><span class="card-title">Win rate by month</span></div>
+          <div style="position:relative;width:100%;height:130px"><canvas id="winrateChart${chartSuffix}" role="img" aria-label="Monthly win rate"></canvas></div>
+        </div>
+
+        <div class="chart-card" style="margin-bottom:0">
+          <div class="card-header"><span class="card-title">Covered call premium capture</span></div>
+          ${shorts.length === 0 ? '<div style="color:var(--muted);font-size:12px;padding:8px 0">No covered call or short put trades yet.</div>' :
+            shorts.slice(0,8).map(r=>{
+              const pct = r.premPct !== null ? r.premPct : 0;
+              const capped = Math.max(-100, Math.min(100, pct));
+              const barC = r.winLoss==='WIN' ? '#00D4AA' : '#FF4D6D';
+              return `<div class="prem-item">
+                <span class="prem-label">${r.ticker} ${r.strike} ${r.expiration.replace(/ /g,'·')}</span>
+                <div class="prem-bar-wrap">
+                  <div class="prem-bg"><div class="prem-fill" style="width:${Math.abs(capped)}%;background:${barC}"></div></div>
+                  <span class="prem-pct" style="color:${barC}">${r.premPct!==null?(r.premPct>=0?'+':'')+r.premPct.toFixed(1)+'%':'N/A'}</span>
+                </div>
+              </div>`;
+            }).join('')
+          }
+          ${shorts.filter(r=>r.premPct!==null&&r.premPct<-100).length > 0 ?
+            `<div class="insight">⚠ ${shorts.filter(r=>r.premPct!==null&&r.premPct<-100).length} uncapped losses detected. Consider a hard buyback rule at 2× premium received.</div>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="two-col">
+      <div class="chart-card" style="margin-bottom:0">
+        <div class="card-header"><span class="card-title">⚠ Rule violations detected</span></div>
+        ${viols.length===0
+          ? '<div style="color:var(--muted);font-size:12px;padding:8px 0">No violations flagged. Clean record.</div>'
+          : `<div class="vio-list">${viols.map(v=>`<div class="vio-item"><span class="vio-ticker">${v.ticker}</span><span class="vio-text"><strong>${v.date}</strong> — ${v.rule}</span><span class="vio-pnl">–$${Math.abs(v.pnl).toLocaleString('en-US',{maximumFractionDigits:0})}</span></div>`).join('')}</div>`}
+      </div>
+      <div class="chart-card" style="margin-bottom:0">
+        <div class="card-header"><span class="card-title">Trading rules on file</span></div>
+        <div class="rules-list">
+          ${[
+            'Max drawdown on puts: 10% of position value',
+            'Max drawdown on calls: 10% of position value',
+            'No SPX 0DTEs — gamma risk too high',
+            'Go longer on options — reduce short-dated risk',
+            'Protect green days — do not give back profits',
+            'Covered call buyback at 2× premium received',
+            'Define max contracts per position before entering',
+          ].map(r=>`<div class="rule-item"><div class="rule-dot"></div><span>${r}</span></div>`).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+
+  setTimeout(()=>{
+    makeEquityChart(`equityChart${chartSuffix}`, monthly, accentColor);
+    makeWinRateChart(`winrateChart${chartSuffix}`, monthly);
+  }, 50);
+}
+
+function renderCombined() {
+  const iRec = state.individual.records;
+  const rRec = state.roth.records;
+  const hasI = iRec.length > 0;
+  const hasR = rRec.length > 0;
+
+  if (!hasI && !hasR) {
+    document.getElementById('dashboard-combined').innerHTML = `<div class="empty-state"><div class="empty-icon">🔗</div><div class="empty-title">Upload data to at least one account first</div><div class="empty-sub">Switch to Individual Account or Roth IRA tabs and upload statements.</div></div>`;
+    return;
+  }
+
+  const iSum = hasI ? buildSummary(iRec) : null;
+  const rSum = hasR ? buildSummary(rRec) : null;
+  const iMon = hasI ? buildMonthly(iRec) : Array(12).fill({month:'',pnl:0,wins:0,losses:0,winAmts:[],lossAmts:[]});
+  const rMon = hasR ? buildMonthly(rRec) : Array(12).fill({month:'',pnl:0,wins:0,losses:0,winAmts:[],lossAmts:[]});
+
+  const combinedPnl = (iSum?.totalPnl||0) + (rSum?.totalPnl||0);
+  const combinedTrades = (iSum?.totalTrades||0) + (rSum?.totalTrades||0);
+  const combinedWins = (iSum?.wins||0) + (rSum?.wins||0);
+  const combinedLosses = (iSum?.losses||0) + (rSum?.losses||0);
+  const combinedWR = combinedTrades ? combinedWins/combinedTrades*100 : 0;
+
+  document.getElementById('dashboard-combined').innerHTML = `
+    <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi">
+        <div class="kpi-label">Combined YTD P&L</div>
+        <div class="kpi-value ${cls(combinedPnl)}">${fmtMoney(combinedPnl)}</div>
+        <div class="kpi-sub">Both accounts · ${combinedTrades} trades</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Individual Account</div>
+        <div class="kpi-value ${iSum ? cls(iSum.totalPnl) : 'neutral'}">${iSum ? fmtMoney(iSum.totalPnl) : '—'}</div>
+        <div class="kpi-sub">${iSum ? `${iSum.wins}W / ${iSum.losses}L · ${iSum.winRate.toFixed(0)}% WR` : 'No data'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Roth IRA</div>
+        <div class="kpi-value ${rSum ? cls(rSum.totalPnl) : 'neutral'}">${rSum ? fmtMoney(rSum.totalPnl) : '—'}</div>
+        <div class="kpi-sub">${rSum ? `${rSum.wins}W / ${rSum.losses}L · ${rSum.winRate.toFixed(0)}% WR` : 'No data'}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Combined Win Rate</div>
+        <div class="kpi-value">${combinedTrades ? combinedWR.toFixed(1) : '—'}%</div>
+        <div class="kpi-sub">${combinedWins}W / ${combinedLosses}L total</div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-header">
+        <span class="card-title">Equity curves — all accounts</span>
+        <div>
+          <span class="account-label label-indiv"><span class="label-dot" style="background:#58A6FF"></span>Individual</span>
+          <span class="account-label label-roth"><span class="label-dot" style="background:#B97FFF"></span>Roth IRA</span>
+          <span class="account-label label-combined"><span class="label-dot" style="background:#00D4AA"></span>Combined</span>
+        </div>
+      </div>
+      <div style="position:relative;width:100%;height:220px"><canvas id="combinedChart" role="img" aria-label="Combined equity curves for both accounts"></canvas></div>
+    </div>
+
+    <div class="two-col">
+      <div class="chart-card" style="margin-bottom:0">
+        <div class="card-header">
+          <span class="card-title">Individual — monthly breakdown</span>
+          <span class="account-label label-indiv" style="font-size:10px;padding:2px 8px">Individual</span>
+        </div>
+        ${renderMiniTable(iMon, iSum)}
+      </div>
+      <div class="chart-card" style="margin-bottom:0">
+        <div class="card-header">
+          <span class="card-title">Roth IRA — monthly breakdown</span>
+          <span class="account-label label-roth" style="font-size:10px;padding:2px 8px">Roth IRA</span>
+        </div>
+        ${renderMiniTable(rMon, rSum)}
+      </div>
+    </div>
+  `;
+
+  setTimeout(()=>{ makeCombinedChart('combinedChart', iMon, rMon); }, 50);
+}
+
+function renderMiniTable(monthly, summary) {
+  if (!summary) return '<div style="color:var(--muted);font-size:12px;padding:8px 0">No data uploaded for this account.</div>';
+  const active = monthly.filter(m=>m.wins+m.losses>0);
+  return `<table class="monthly-table">
+    <thead><tr><th>Month</th><th>P&L</th><th>W</th><th>L</th><th>Win %</th></tr></thead>
+    <tbody>
+      ${active.map(m=>{
+        const wr = m.wins+m.losses>0?Math.round(m.wins/(m.wins+m.losses)*100):0;
+        return `<tr><td>${m.month}</td><td class="${cls(m.pnl)}">${fmtMoney(m.pnl)}</td><td class="pos">${m.wins}</td><td class="neg">${m.losses}</td><td style="color:${wr>=50?'#00D4AA':'#FF4D6D'};font-family:var(--mono)">${wr}%</td></tr>`;
+      }).join('')}
+      <tr class="total-row"><td>YTD</td><td class="${cls(summary.totalPnl)}">${fmtMoney(summary.totalPnl)}</td><td class="pos">${summary.wins}</td><td class="neg">${summary.losses}</td><td style="color:${summary.winRate>=50?'#00D4AA':'#FF4D6D'};font-family:var(--mono)">${summary.winRate.toFixed(0)}%</td></tr>
+    </tbody>
+  </table>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  FILE HANDLING
+// ═══════════════════════════════════════════════════════════════
+async function loadFiles(event, account) {
+  const files = Array.from(event.target.files);
+  if (!files.length) return;
+  const texts = await Promise.all(files.map(f => f.text()));
+  state[account].records = parseMultipleFiles(texts);
+  state[account].fileNames = files.map(f=>f.name);
+  updateUploadUI(account);
+  renderDashboard(account);
+  renderCombined();
+  updateTopBadge();
+  saveToStorage(account);
+}
+
+function handleDrag(e, zone) { e.preventDefault(); document.getElementById(`upload-${zone}`).classList.add('drag-over'); }
+function handleDragLeave(e, zone) { document.getElementById(`upload-${zone}`).classList.remove('drag-over'); }
+function handleDrop(e, zone) {
+  e.preventDefault();
+  handleDragLeave(e, zone);
+  const account = zone === 'indiv' ? 'individual' : 'roth';
+  const files = Array.from(e.dataTransfer.files).filter(f=>f.name.endsWith('.csv'));
+  if (!files.length) return;
+  Promise.all(files.map(f=>f.text())).then(texts=>{
+    state[account].records = parseMultipleFiles(texts);
+    state[account].fileNames = files.map(f=>f.name);
+    updateUploadUI(account);
+    renderDashboard(account);
+    renderCombined();
+    updateTopBadge();
+    saveToStorage(account);
+  });
+}
+
+function updateUploadUI(account) {
+  const zone = account==='individual' ? 'indiv' : 'roth';
+  const el = document.getElementById(`upload-${zone}`);
+  const listEl = document.getElementById(`files-${zone}-list`);
+  const names = state[account].fileNames;
+  el.classList.add('has-data');
+  listEl.textContent = names.join('  ·  ');
+}
+
+function clearAccount(account) {
+  state[account].records = [];
+  state[account].fileNames = [];
+  const zone = account==='individual' ? 'indiv' : 'roth';
+  document.getElementById(`upload-${zone}`).classList.remove('has-data');
+  document.getElementById(`files-${zone}-list`).textContent = '';
+  document.getElementById(`file-${zone}`).value = '';
+  document.getElementById(`dashboard-${account}`).innerHTML = `<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-title">Data cleared</div><div class="empty-sub">Drop new CSV files above to reload.</div></div>`;
+  renderCombined();
+  updateTopBadge();
+  localStorage.removeItem(`trading_${account}`);
+}
+
+function updateTopBadge() {
+  const iP = state.individual.records.length ? buildSummary(state.individual.records).totalPnl : null;
+  const rP = state.roth.records.length ? buildSummary(state.roth.records).totalPnl : null;
+  const total = (iP||0) + (rP||0);
+  const badge = document.getElementById('ytd-badge');
+  if (iP===null && rP===null) { badge.textContent = 'YTD: —'; badge.className = 'topbar-ytd ytd-neutral'; return; }
+  badge.textContent = `YTD: ${fmtMoneyPlain(total)}`;
+  badge.className = `topbar-ytd ${total>=0?'ytd-pos':'ytd-neg'}`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════════════════════════
+function switchTab(tab) {
+  state.activeTab = tab;
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>{ t.className='tab'; });
+  document.getElementById(`panel-${tab}`).classList.add('active');
+  const tabEl = document.getElementById(`tab-${tab==='individual'?'indiv':tab==='roth'?'roth':'combined'}`);
+  tabEl.classList.add(`active-${tab==='individual'?'indiv':tab}`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PERSISTENCE (localStorage)
+// ═══════════════════════════════════════════════════════════════
+function saveToStorage(account) {
+  try {
+    localStorage.setItem(`trading_${account}`, JSON.stringify({
+      records: state[account].records,
+      fileNames: state[account].fileNames
+    }));
+  } catch(e) { console.warn('Storage full, skipping cache'); }
+}
+
+function loadFromStorage() {
+  for (const account of ['individual','roth']) {
+    try {
+      const raw = localStorage.getItem(`trading_${account}`);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (parsed.records?.length) {
+        state[account].records = parsed.records;
+        state[account].fileNames = parsed.fileNames || [];
+        updateUploadUI(account);
+        renderDashboard(account);
+      }
+    } catch(e) { localStorage.removeItem(`trading_${account}`); }
+  }
+  renderCombined();
+  updateTopBadge();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════
+switchTab('individual');
+loadFromStorage();
+</script>
+</body>
+</html>
