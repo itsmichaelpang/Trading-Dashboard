@@ -108,6 +108,47 @@ tr:hover td{background:var(--surface2)}
 .lbl-c{background:rgba(0,212,170,.12);color:var(--combined)}
 .lbl-dot{width:5px;height:5px;border-radius:50%}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* ── CALENDAR ── */
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.cal-nav-center{display:flex;align-items:center;gap:16px}
+.cal-month-label{font-family:var(--mono);font-size:18px;font-weight:500;color:var(--text);min-width:160px;text-align:center}
+.cal-btn{background:var(--surface);border:1px solid var(--border);color:var(--muted);font-size:14px;width:32px;height:32px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;font-family:var(--sans)}
+.cal-btn:hover{border-color:var(--text);color:var(--text)}
+.cal-legend{display:flex;align-items:center;gap:16px;font-size:11px;color:var(--muted)}
+.cal-legend-dot{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:4px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr) 140px;gap:2px;width:100%}
+.cal-header{padding:8px 4px;text-align:center;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.cal-header.week-col{color:var(--muted);background:var(--surface2);border-radius:6px 6px 0 0}
+.cal-day{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 10px 8px;min-height:96px;position:relative;transition:border-color .15s}
+.cal-day.empty{background:transparent;border-color:transparent}
+.cal-day.empty:hover{border-color:transparent}
+.cal-day.today{border-color:var(--blue)!important;box-shadow:0 0 0 1px var(--blue)}
+.cal-day.win{background:rgba(0,212,170,0.07);border-color:rgba(0,212,170,0.25)}
+.cal-day.loss{background:rgba(255,77,109,0.07);border-color:rgba(255,77,109,0.25)}
+.cal-day.win:hover{border-color:rgba(0,212,170,0.6)}
+.cal-day.loss:hover{border-color:rgba(255,77,109,0.6)}
+.cal-day-num{font-size:11px;font-weight:500;color:var(--muted);margin-bottom:6px;line-height:1}
+.cal-day.today .cal-day-num{color:var(--blue);font-weight:600}
+.cal-pnl-row{display:flex;align-items:flex-start;gap:4px;margin-bottom:3px}
+.cal-acct-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.cal-pnl-val{font-family:var(--mono);font-size:11px;font-weight:500;line-height:1.3}
+.cal-pnl-val.pos{color:var(--green)}
+.cal-pnl-val.neg{color:var(--red)}
+.cal-pnl-combined{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:5px;padding-top:5px;border-top:1px solid var(--border)}
+.cal-week{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px;min-height:96px;display:flex;flex-direction:column;justify-content:center;gap:5px}
+.cal-week-label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:2px;font-weight:500}
+.cal-week-val{font-family:var(--mono);font-size:12px;font-weight:500}
+.cal-week-val.pos{color:var(--green)}
+.cal-week-val.neg{color:var(--red)}
+.cal-week-val.neu{color:var(--muted)}
+.cal-week-sub{font-size:10px;color:var(--muted);margin-top:1px}
+.cal-month-totals{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px}
+.cal-total-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
+.cal-total-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:6px;font-weight:500}
+.cal-total-val{font-family:var(--mono);font-size:18px;font-weight:500}
+.cal-total-sub{font-size:11px;color:var(--muted);margin-top:4px}
+.tab.tkal{color:#F0A500;border-color:#F0A500;background:rgba(240,165,0,.08)}
 </style>
 </head>
 <body>
@@ -118,6 +159,7 @@ tr:hover td{background:var(--surface2)}
     <button class="tab" id="tab-i" onclick="switchTab('i')">Individual Account</button>
     <button class="tab" id="tab-r" onclick="switchTab('r')">Roth IRA</button>
     <button class="tab" id="tab-c" onclick="switchTab('c')">Combined View</button>
+    <button class="tab" id="tab-kal" onclick="switchTab('kal')">📅 Calendar</button>
   </div>
   <div class="ytd-badge" id="ytd-badge">YTD: —</div>
 </div>
@@ -164,6 +206,16 @@ tr:hover td{background:var(--surface2)}
     <button class="btn-run-c" id="btn-run-c" onclick="runReport('c')">Run Combined Report</button>
   </div>
   <div id="dash-c"><div class="empty"><div class="empty-icon">🔗</div><div class="empty-title">Upload data to at least one account first</div><div class="empty-sub">Switch to Individual Account or Roth IRA tabs, upload statements,<br>then return here and click Run Combined Report.</div></div></div>
+</div>
+
+<div class="panel" id="panel-kal">
+  <div class="run-bar visible" id="run-bar-kal" style="margin-bottom:20px">
+    <div class="run-info"><strong>Trading Calendar</strong> — Individual + Roth IRA side by side per day</div>
+    <button class="btn-run-c" onclick="renderCalendar()">Refresh Calendar</button>
+  </div>
+  <div id="dash-kal">
+    <div class="empty"><div class="empty-icon">📅</div><div class="empty-title">Upload account data first</div><div class="empty-sub">Load statements in Individual Account and/or Roth IRA tabs,<br>then return here to view your trading calendar.</div></div>
+  </div>
 </div>
 
 <!-- Libraries loaded in order: PapaParse first, then Chart.js -->
@@ -608,6 +660,17 @@ async function runReport(acc){
     renderCombined();
     updateBadge();
     save(acc);
+    // Auto-navigate calendar to most recent month with trades
+    const closedRecs = records.filter(r=>r.wl!=='OPEN'&&r.closeDate&&r.closeDate!=='OPEN');
+    if(closedRecs.length){
+      const lastClose=closedRecs[closedRecs.length-1].closeDate.split('/');
+      if(lastClose.length>=3){
+        CAL.month=parseInt(lastClose[0])-1;
+        let y=parseInt(lastClose[2]); if(y<100) y+=2000;
+        CAL.year=y;
+      }
+    }
+    if(S.tab==='kal') renderCalendar();
     // Show re-run button in dashboard header (handled in renderAccount via clearAcc button)
   } catch(e) {
     showErr(acc,`Error parsing files: ${e.message}`);
@@ -642,6 +705,237 @@ function updateBadge(){
   el.className=`ytd-badge ${t>=0?'ytd-pos':'ytd-neg'}`;
 }
 
+// ── CALENDAR ──────────────────────────────────────────────────
+const CAL = { year: new Date().getFullYear(), month: new Date().getMonth() };
+const DAYS  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MNAMES = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+
+// Build a map: 'YYYY-M-D' -> { i: pnl, r: pnl }  from all closed records
+function buildDayMap(records, acc) {
+  const map = {};
+  for (const rec of records) {
+    if (rec.wl === 'OPEN' || rec.pnl === null) continue;
+    // Use close date for the calendar (when cash settled)
+    const dateStr = rec.closeDate;
+    if (!dateStr || dateStr === 'OPEN') continue;
+    // Parse M/D/YY
+    const parts = dateStr.split('/');
+    if (parts.length < 3) continue;
+    const m = parseInt(parts[0]);
+    const d = parseInt(parts[1]);
+    let y = parseInt(parts[2]);
+    if (y < 100) y += 2000;
+    const key = `${y}-${m}-${d}`;
+    if (!map[key]) map[key] = { i: 0, r: 0 };
+    map[key][acc] = (map[key][acc] || 0) + rec.pnl;
+  }
+  return map;
+}
+
+function mergeDayMaps(iMap, rMap) {
+  const all = {};
+  const keys = new Set([...Object.keys(iMap), ...Object.keys(rMap)]);
+  for (const k of keys) {
+    all[k] = { i: iMap[k]?.i || 0, r: rMap[k]?.r || 0 };
+  }
+  return all;
+}
+
+function renderCalendar() {
+  const hasI = S.i.records.length > 0;
+  const hasR = S.r.records.length > 0;
+
+  if (!hasI && !hasR) {
+    document.getElementById('dash-kal').innerHTML = `<div class="empty"><div class="empty-icon">📅</div><div class="empty-title">No data loaded</div><div class="empty-sub">Upload statements in the Individual Account and/or Roth IRA tabs first.</div></div>`;
+    return;
+  }
+
+  const { year, month } = CAL;
+  const today = new Date();
+
+  // Build day maps per account
+  const iRaw = {}, rRaw = {};
+  if (hasI) {
+    const m = buildDayMap(S.i.records, 'i');
+    for (const [k,v] of Object.entries(m)) { iRaw[k] = v; }
+  }
+  if (hasR) {
+    const m = buildDayMap(S.r.records, 'r');
+    for (const [k,v] of Object.entries(m)) { rRaw[k] = v; }
+  }
+  const dayMap = mergeDayMaps(iRaw, rRaw);
+
+  // Calendar grid setup
+  const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // Build weeks: array of 7-day arrays
+  const weeks = [];
+  let week = new Array(firstDay).fill(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    week.push(d);
+    if (week.length === 7) { weeks.push(week); week = []; }
+  }
+  if (week.length > 0) {
+    while (week.length < 7) week.push(null);
+    weeks.push(week);
+  }
+
+  // Month totals
+  let monthI = 0, monthR = 0, tradingDays = 0, greenDays = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = `${year}-${month + 1}-${d}`;
+    const entry = dayMap[key];
+    if (entry) {
+      monthI += entry.i || 0;
+      monthR += entry.r || 0;
+      const net = (entry.i || 0) + (entry.r || 0);
+      if (net !== 0) { tradingDays++; if (net > 0) greenDays++; }
+    }
+  }
+  const monthCombined = monthI + monthR;
+
+  // Render
+  const fmtC = (v, showSign=true) => {
+    if (v === 0) return '';
+    const abs = '$' + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+    return (v > 0 ? (showSign ? '+' : '') : '–') + abs;
+  };
+  const cls = v => v > 0 ? 'pos' : v < 0 ? 'neg' : 'neu';
+
+  let gridHTML = '';
+
+  // Column headers
+  for (const d of DAYS) gridHTML += `<div class="cal-header">${d}</div>`;
+  gridHTML += `<div class="cal-header week-col">Week Total</div>`;
+
+  // Weeks
+  for (const wk of weeks) {
+    let weekI = 0, weekR = 0, weekHasTrades = false;
+
+    const dayCells = wk.map(d => {
+      if (d === null) return `<div class="cal-day empty"></div>`;
+      const key = `${year}-${month + 1}-${d}`;
+      const entry = dayMap[key] || null;
+      const iVal = entry?.i || 0;
+      const rVal = entry?.r || 0;
+      const combined = iVal + rVal;
+      weekI += iVal; weekR += rVal;
+      if (entry) weekHasTrades = true;
+
+      const isToday = (d === today.getDate() && month === today.getMonth() && year === today.getFullYear());
+      let dayCls = 'cal-day';
+      if (combined > 0) dayCls += ' win';
+      else if (combined < 0) dayCls += ' loss';
+      if (isToday) dayCls += ' today';
+
+      let inner = `<div class="cal-day-num">${d}</div>`;
+
+      if (hasI && iVal !== 0) {
+        inner += `<div class="cal-pnl-row">
+          <span class="cal-acct-dot" style="background:#58A6FF"></span>
+          <span class="cal-pnl-val ${cls(iVal)}">${fmtC(iVal)}</span>
+        </div>`;
+      }
+      if (hasR && rVal !== 0) {
+        inner += `<div class="cal-pnl-row">
+          <span class="cal-acct-dot" style="background:#B97FFF"></span>
+          <span class="cal-pnl-val ${cls(rVal)}">${fmtC(rVal)}</span>
+        </div>`;
+      }
+      if (hasI && hasR && (iVal !== 0 || rVal !== 0) && !(iVal === 0 || rVal === 0)) {
+        inner += `<div class="cal-pnl-combined">Net ${fmtC(combined)}</div>`;
+      }
+      return `<div class="${dayCls}">${inner}</div>`;
+    });
+
+    const weekCombined = weekI + weekR;
+
+    let weekCell = `<div class="cal-week">
+      <div class="cal-week-label">Week</div>`;
+
+    if (!weekHasTrades) {
+      weekCell += `<div class="cal-week-val neu">—</div>`;
+    } else {
+      if (hasI && weekI !== 0) {
+        weekCell += `<div style="display:flex;align-items:center;gap:5px">
+          <span class="cal-acct-dot" style="width:5px;height:5px;border-radius:50%;background:#58A6FF;flex-shrink:0"></span>
+          <span class="cal-week-val ${cls(weekI)}">${fmtC(weekI)}</span>
+        </div>`;
+      }
+      if (hasR && weekR !== 0) {
+        weekCell += `<div style="display:flex;align-items:center;gap:5px">
+          <span class="cal-acct-dot" style="width:5px;height:5px;border-radius:50%;background:#B97FFF;flex-shrink:0"></span>
+          <span class="cal-week-val ${cls(weekR)}">${fmtC(weekR)}</span>
+        </div>`;
+      }
+      if (hasI && hasR) {
+        weekCell += `<div class="cal-week-sub" style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border)">
+          <span class="cal-week-val ${cls(weekCombined)}" style="font-size:13px">${fmtC(weekCombined)}</span>
+          <div class="cal-week-sub">combined</div>
+        </div>`;
+      }
+    }
+    weekCell += `</div>`;
+
+    gridHTML += dayCells.join('') + weekCell;
+  }
+
+  // Month totals footer
+  const totalsHTML = `
+    <div class="cal-month-totals">
+      ${hasI ? `<div class="cal-total-card">
+        <div class="cal-total-label"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#58A6FF;margin-right:5px;vertical-align:middle"></span>Individual</div>
+        <div class="cal-total-val ${cls(monthI)}">${fmtC(monthI) || '—'}</div>
+        <div class="cal-total-sub">Month total</div>
+      </div>` : ''}
+      ${hasR ? `<div class="cal-total-card">
+        <div class="cal-total-label"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#B97FFF;margin-right:5px;vertical-align:middle"></span>Roth IRA</div>
+        <div class="cal-total-val ${cls(monthR)}">${fmtC(monthR) || '—'}</div>
+        <div class="cal-total-sub">Month total</div>
+      </div>` : ''}
+      ${hasI && hasR ? `<div class="cal-total-card">
+        <div class="cal-total-label"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#00D4AA;margin-right:5px;vertical-align:middle"></span>Combined</div>
+        <div class="cal-total-val ${cls(monthCombined)}">${fmtC(monthCombined) || '—'}</div>
+        <div class="cal-total-sub">Month total</div>
+      </div>` : ''}
+      <div class="cal-total-card">
+        <div class="cal-total-label">Trading days</div>
+        <div class="cal-total-val">${tradingDays}</div>
+        <div class="cal-total-sub">${tradingDays ? Math.round(greenDays/tradingDays*100) : 0}% green days</div>
+      </div>
+    </div>`;
+
+  // Legend
+  const legendHTML = `
+    <div class="cal-legend">
+      ${hasI ? `<span><span class="cal-legend-dot" style="background:#58A6FF"></span>Individual</span>` : ''}
+      ${hasR ? `<span><span class="cal-legend-dot" style="background:#B97FFF"></span>Roth IRA</span>` : ''}
+      <span><span class="cal-legend-dot" style="background:rgba(0,212,170,0.4)"></span>Profitable day</span>
+      <span><span class="cal-legend-dot" style="background:rgba(255,77,109,0.4)"></span>Loss day</span>
+    </div>`;
+
+  document.getElementById('dash-kal').innerHTML = `
+    <div class="cal-nav">
+      <div class="cal-nav-center">
+        <button class="cal-btn" onclick="calNav(-1)">&#8249;</button>
+        <div class="cal-month-label">${MNAMES[month]} ${year}</div>
+        <button class="cal-btn" onclick="calNav(1)">&#8250;</button>
+      </div>
+      ${legendHTML}
+    </div>
+    <div class="cal-grid">${gridHTML}</div>
+    ${totalsHTML}`;
+}
+
+function calNav(dir) {
+  CAL.month += dir;
+  if (CAL.month > 11) { CAL.month = 0; CAL.year++; }
+  if (CAL.month < 0)  { CAL.month = 11; CAL.year--; }
+  renderCalendar();
+}
+
 // ── TABS ──────────────────────────────────────────────────────
 function switchTab(t){
   S.tab=t;
@@ -649,6 +943,7 @@ function switchTab(t){
   document.querySelectorAll('.tab').forEach(b=>{b.className='tab';});
   document.getElementById(`panel-${t}`).classList.add('active');
   document.getElementById(`tab-${t}`).classList.add(`t${t}`);
+  if(t==='kal') renderCalendar();
 }
 
 // ── PERSISTENCE ───────────────────────────────────────────────
