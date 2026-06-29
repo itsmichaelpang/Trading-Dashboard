@@ -149,6 +149,35 @@ tr:hover td{background:var(--surface2)}
 .cal-total-val{font-family:var(--mono);font-size:18px;font-weight:500}
 .cal-total-sub{font-size:11px;color:var(--muted);margin-top:4px}
 .tab.tkal{color:#F0A500;border-color:#F0A500;background:rgba(240,165,0,.08)}
+
+/* ── TRADE COUNT + HINT ── */
+.cal-trade-count{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--surface2);border:1px solid var(--border);padding:1px 5px;border-radius:10px;white-space:nowrap}
+.cal-day.win .cal-trade-count{color:rgba(0,212,170,.7);background:rgba(0,212,170,.08);border-color:rgba(0,212,170,.2)}
+.cal-day.loss .cal-trade-count{color:rgba(255,77,109,.7);background:rgba(255,77,109,.08);border-color:rgba(255,77,109,.2)}
+.cal-dblclick-hint{font-size:9px;color:var(--muted);opacity:0;text-align:center;margin-top:6px;transition:opacity .15s;letter-spacing:.02em}
+.cal-day.has-trades{cursor:pointer}
+.cal-day.has-trades:hover .cal-dblclick-hint{opacity:1}
+
+/* ── MODAL ── */
+#modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(3px)}
+#modal-overlay.modal-active{display:flex}
+.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);width:100%;max-width:900px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.5)}
+.modal-hdr{display:flex;align-items:flex-start;justify-content:space-between;padding:20px 24px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.modal-date{font-size:18px;font-weight:600;color:var(--text);margin-bottom:4px}
+.modal-subtitle{font-size:13px;color:var(--muted)}
+.modal-close{background:none;border:1px solid var(--border);color:var(--muted);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-left:16px;transition:all .15s;font-family:var(--sans)}
+.modal-close:hover{border-color:var(--red);color:var(--red)}
+.modal-body{overflow-y:auto;padding:0 24px 24px;flex:1}
+.modal-table{width:100%;border-collapse:collapse;margin-top:16px}
+.modal-table th{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:0 10px 10px;border-bottom:1px solid var(--border)}
+.modal-trade-row td{padding:12px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+.modal-trade-row:last-child td{border-bottom:none}
+.modal-trade-row:hover td{background:var(--surface2)}
+.modal-strategy-badge{font-size:10px;font-weight:500;padding:3px 7px;border-radius:4px;background:var(--surface2);color:var(--muted);white-space:nowrap;border:1px solid var(--border)}
+.modal-time-badge{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--surface2);padding:2px 7px;border-radius:10px;white-space:nowrap}
+.modal-wl{font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;letter-spacing:.04em}
+.modal-wl-win{background:var(--green-bg);color:var(--green)}
+.modal-wl-loss{background:var(--red-bg);color:var(--red)}
 </style>
 </head>
 <body>
@@ -221,6 +250,9 @@ tr:hover td{background:var(--surface2)}
 <!-- Libraries loaded in order: PapaParse first, then Chart.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<!-- Day detail modal overlay -->
+<div id="modal-overlay" onclick="closeDayModal()"></div>
 
 <script>
 // ── STATE ──────────────────────────────────────────────────────
@@ -711,15 +743,13 @@ const DAYS  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MNAMES = ['January','February','March','April','May','June',
                 'July','August','September','October','November','December'];
 
-// Build a map: 'YYYY-M-D' -> { i: pnl, r: pnl }  from all closed records
+// Build a map: 'YYYY-M-D' -> { i: pnl, r: pnl, iTrades: [], rTrades: [] }
 function buildDayMap(records, acc) {
   const map = {};
   for (const rec of records) {
     if (rec.wl === 'OPEN' || rec.pnl === null) continue;
-    // Use close date for the calendar (when cash settled)
     const dateStr = rec.closeDate;
     if (!dateStr || dateStr === 'OPEN') continue;
-    // Parse M/D/YY
     const parts = dateStr.split('/');
     if (parts.length < 3) continue;
     const m = parseInt(parts[0]);
@@ -727,8 +757,9 @@ function buildDayMap(records, acc) {
     let y = parseInt(parts[2]);
     if (y < 100) y += 2000;
     const key = `${y}-${m}-${d}`;
-    if (!map[key]) map[key] = { i: 0, r: 0 };
+    if (!map[key]) map[key] = { i: 0, r: 0, iTrades: [], rTrades: [] };
     map[key][acc] = (map[key][acc] || 0) + rec.pnl;
+    map[key][`${acc}Trades`].push(rec);
   }
   return map;
 }
@@ -737,7 +768,12 @@ function mergeDayMaps(iMap, rMap) {
   const all = {};
   const keys = new Set([...Object.keys(iMap), ...Object.keys(rMap)]);
   for (const k of keys) {
-    all[k] = { i: iMap[k]?.i || 0, r: rMap[k]?.r || 0 };
+    all[k] = {
+      i: iMap[k]?.i || 0,
+      r: rMap[k]?.r || 0,
+      iTrades: iMap[k]?.iTrades || [],
+      rTrades: rMap[k]?.rTrades || [],
+    };
   }
   return all;
 }
@@ -765,6 +801,7 @@ function renderCalendar() {
     for (const [k,v] of Object.entries(m)) { rRaw[k] = v; }
   }
   const dayMap = mergeDayMaps(iRaw, rRaw);
+  CAL.dayMap = dayMap; // store for modal access
 
   // Calendar grid setup
   const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
@@ -821,6 +858,9 @@ function renderCalendar() {
       const iVal = entry?.i || 0;
       const rVal = entry?.r || 0;
       const combined = iVal + rVal;
+      const iTrades = entry?.iTrades || [];
+      const rTrades = entry?.rTrades || [];
+      const totalTrades = iTrades.length + rTrades.length;
       weekI += iVal; weekR += rVal;
       if (entry) weekHasTrades = true;
 
@@ -829,8 +869,13 @@ function renderCalendar() {
       if (combined > 0) dayCls += ' win';
       else if (combined < 0) dayCls += ' loss';
       if (isToday) dayCls += ' today';
+      const hasTrades = totalTrades > 0;
+      if (hasTrades) dayCls += ' has-trades';
 
-      let inner = `<div class="cal-day-num">${d}</div>`;
+      let inner = `<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+        <span class="cal-day-num">${d}</span>
+        ${hasTrades ? `<span class="cal-trade-count">${totalTrades} trade${totalTrades !== 1 ? 's' : ''}</span>` : ''}
+      </div>`;
 
       if (hasI && iVal !== 0) {
         inner += `<div class="cal-pnl-row">
@@ -844,10 +889,15 @@ function renderCalendar() {
           <span class="cal-pnl-val ${cls(rVal)}">${fmtC(rVal)}</span>
         </div>`;
       }
-      if (hasI && hasR && (iVal !== 0 || rVal !== 0) && !(iVal === 0 || rVal === 0)) {
+      if (hasI && hasR && iVal !== 0 && rVal !== 0) {
         inner += `<div class="cal-pnl-combined">Net ${fmtC(combined)}</div>`;
       }
-      return `<div class="${dayCls}">${inner}</div>`;
+      if (hasTrades) {
+        inner += `<div class="cal-dblclick-hint">double-click for details</div>`;
+      }
+
+      const dblAttr = hasTrades ? `ondblclick="openDayModal('${key}')"` : '';
+      return `<div class="${dayCls}" ${dblAttr}>${inner}</div>`;
     });
 
     const weekCombined = weekI + weekR;
@@ -914,6 +964,7 @@ function renderCalendar() {
       ${hasR ? `<span><span class="cal-legend-dot" style="background:#B97FFF"></span>Roth IRA</span>` : ''}
       <span><span class="cal-legend-dot" style="background:rgba(0,212,170,0.4)"></span>Profitable day</span>
       <span><span class="cal-legend-dot" style="background:rgba(255,77,109,0.4)"></span>Loss day</span>
+      <span style="margin-left:8px;padding-left:12px;border-left:1px solid var(--border)">Double-click any day with trades for details</span>
     </div>`;
 
   document.getElementById('dash-kal').innerHTML = `
@@ -935,6 +986,125 @@ function calNav(dir) {
   if (CAL.month < 0)  { CAL.month = 11; CAL.year--; }
   renderCalendar();
 }
+
+// ── DAY DETAIL MODAL ──────────────────────────────────────────
+function openDayModal(key) {
+  const entry = CAL.dayMap?.[key];
+  if (!entry) return;
+  const [year, m, d] = key.split('-').map(Number);
+  const dateLabel = `${MNAMES[m-1]} ${d}, ${year}`;
+  const iTrades = entry.iTrades || [];
+  const rTrades = entry.rTrades || [];
+  const allTrades = [
+    ...iTrades.map(t => ({...t, _acc:'i'})),
+    ...rTrades.map(t => ({...t, _acc:'r'})),
+  ];
+
+  const fmtM = v => {
+    const abs = '$' + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+    return (v >= 0 ? '+' : '–') + abs;
+  };
+
+  // Time in trade: days between open and close dates
+  function daysInTrade(rec) {
+    if (!rec.openDate || !rec.closeDate || rec.closeDate === 'OPEN') return '—';
+    const parse = s => {
+      const p = s.split('/');
+      if (p.length < 3) return null;
+      let y = parseInt(p[2]); if (y < 100) y += 2000;
+      return new Date(y, parseInt(p[0])-1, parseInt(p[1]));
+    };
+    const o = parse(rec.openDate), c = parse(rec.closeDate);
+    if (!o || !c) return '—';
+    const diff = Math.round((c - o) / (1000*60*60*24));
+    if (diff === 0) return 'Same day';
+    return `${diff} day${diff !== 1 ? 's' : ''}`;
+  }
+
+  const netDay = (entry.i || 0) + (entry.r || 0);
+
+  const rowsHTML = allTrades.map(rec => {
+    const accColor = rec._acc === 'i' ? '#58A6FF' : '#B97FFF';
+    const accLabel = rec._acc === 'i' ? 'Individual' : 'Roth IRA';
+    const pnlCls = (rec.pnl || 0) >= 0 ? 'pos' : 'neg';
+    const dit = daysInTrade(rec);
+    const strategy = rec.dir || '—';
+    const contracts = rec.contracts || '—';
+    const ep = rec.ep ? `$${rec.ep}` : '—';
+    const xp = rec.xp && rec.xp !== 'N/A' ? `$${rec.xp}` : '—';
+    return `
+      <tr class="modal-trade-row">
+        <td>
+          <div style="display:flex;align-items:center;gap:7px">
+            <span style="width:6px;height:6px;border-radius:50%;background:${accColor};flex-shrink:0;display:inline-block"></span>
+            <div>
+              <div style="font-weight:500;color:var(--text);font-size:13px">${rec.ticker}</div>
+              <div style="font-size:10px;color:var(--muted);margin-top:1px">${accLabel}</div>
+            </div>
+          </div>
+        </td>
+        <td>
+          <div style="font-size:12px;color:var(--text)">${rec.strike} ${rec.expiration}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:1px">${rec.optType}</div>
+        </td>
+        <td>
+          <span class="modal-strategy-badge">${strategy}</span>
+        </td>
+        <td style="font-family:var(--mono);font-size:12px;text-align:center">${contracts}</td>
+        <td style="font-family:var(--mono);font-size:12px;text-align:right">${ep}</td>
+        <td style="font-family:var(--mono);font-size:12px;text-align:right">${xp}</td>
+        <td style="text-align:center">
+          <span class="modal-time-badge">${dit}</span>
+        </td>
+        <td style="font-family:var(--mono);font-size:13px;font-weight:500;text-align:right" class="${pnlCls}">${fmtM(rec.pnl || 0)}</td>
+        <td style="text-align:center">
+          <span class="modal-wl ${rec.wl === 'WIN' ? 'modal-wl-win' : 'modal-wl-loss'}">${rec.wl}</span>
+        </td>
+      </tr>`;
+  }).join('');
+
+  const netCls = netDay >= 0 ? 'pos' : 'neg';
+
+  document.getElementById('modal-overlay').innerHTML = `
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <div class="modal-hdr">
+        <div>
+          <div class="modal-date">${dateLabel}</div>
+          <div class="modal-subtitle">${allTrades.length} trade${allTrades.length !== 1 ? 's' : ''} closed &nbsp;·&nbsp; Net day P&L: <span class="${netCls}" style="font-family:var(--mono);font-weight:500">${fmtM(netDay)}</span></div>
+        </div>
+        <button class="modal-close" onclick="closeDayModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <table class="modal-table">
+          <thead>
+            <tr>
+              <th style="text-align:left">Ticker</th>
+              <th style="text-align:left">Contract</th>
+              <th style="text-align:left">Strategy</th>
+              <th style="text-align:center">Qty</th>
+              <th style="text-align:right">Entry</th>
+              <th style="text-align:right">Exit</th>
+              <th style="text-align:center">Time in Trade</th>
+              <th style="text-align:right">P&L</th>
+              <th style="text-align:center">Result</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHTML}</tbody>
+        </table>
+      </div>
+    </div>`;
+  document.getElementById('modal-overlay').classList.add('modal-active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDayModal() {
+  document.getElementById('modal-overlay').classList.remove('modal-active');
+  document.getElementById('modal-overlay').innerHTML = '';
+  document.body.style.overflow = '';
+}
+
+// Close on Escape key
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDayModal(); });
 
 // ── TABS ──────────────────────────────────────────────────────
 function switchTab(t){
